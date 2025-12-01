@@ -5,11 +5,7 @@ services:
     environment:
       TZ: "Europe/Moscow"
     ports:
-      - target: 9443
-        published: $ASSIST_PORT_HTTPS
-        protocol: tcp
-        mode: host
-      - target: $ASSIST_PORT_HTTP
+      - target: 8888
         published: $ASSIST_PORT_HTTP
         protocol: tcp
         mode: host
