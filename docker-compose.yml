@@ -6,7 +6,6 @@ services:
     container_name: keycloak-assistant
     ports:
       - "8888:8888"
-      - "8443:8443"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
     volumes:
@@ -16,7 +15,7 @@ services:
     networks:
       - keycloak_default
     healthcheck:
-      test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/api/health"]
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:8888/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
