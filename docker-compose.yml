@@ -1,0 +1,27 @@
+services:
+  keycloak-assistant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: keycloak-assistant
+    ports:
+      - "8888:8888"
+      - "8443:8443"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    volumes:
+      - ./Data:/app/data
+      # SSL сертификаты копируются в образ, не монтируем
+    restart: unless-stopped
+    networks:
+      - keycloak_default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  keycloak_default:
+    external: true
