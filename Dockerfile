@@ -45,5 +45,5 @@ RUN mkdir -p /app/ssl && \
 
 USER appuser
 
-EXPOSE 8888 8443
+EXPOSE 8888
 ENTRYPOINT ["dotnet", "new_assistant.dll"]
