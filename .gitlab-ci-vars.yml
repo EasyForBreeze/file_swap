@@ -1,0 +1,53 @@
+                 ##########################################################################
+                 #                        Global templates section                        #
+                 ##########################################################################
+
+.deploy-vars: &deploy-vars
+    DOCKER_HOST: tcp://auth-$INFRA_SUFFIX-app01.$INFRA_DOMAIN:2376
+    DOCKER_TLS_VERIFY: 1
+    DOCKER_CERT_PATH: "/root/.docker/$ENV_VAR/"
+
+.bank-build-vars: &bank-build-vars
+    RUNNER_TAG: auth-pd-run01.roscap.com
+    INFRA_DOMAIN: roscap.com
+    INFRA_PREFIX: "auth"
+    ASSIST_PORT_HTTP: 8888
+    ASSIST_PORT_HTTPS: 9443
+    NEXUS_URL: nexus.ahml.ru
+    NEXUS_PASS: $NEXUS_PASS_DOM
+
+.dom-build-vars: &dom-build-vars
+    RUNNER_TAG: dom-login-dom
+    INFRA_DOMAIN: ahml1.ru
+    INFRA_PREFIX: "auth"
+    ASSIST_PORT_HTTP: 8888
+    ASSIST_PORT_HTTPS: 9443
+    NEXUS_URL: nexus.ahml.ru
+    NEXUS_PASS: $NEXUS_PASS_DOM
+
+.bank-ltest:
+  variables:
+    ENV_VAR: ltest
+    INFRA_SUFFIX: lt
+    NODE_IP: "10.192.17.31[7800],10.193.17.31[7800],10.16.145.16[7800]"
+    DOMLOGIN_ENV: domlogin-test
+    <<: *bank-build-vars
+
+.dom-ltest:
+  variables:
+    ENV_VAR: dom-ltest
+    INFRA_SUFFIX: lt
+    KC_HOSTNAME: id-ltest.ahml1.ru
+    NODE_IP: "10.208.17.31[7800],10.209.17.31[7800],10.208.17.16[7800]"
+    DOMLOGIN_ENV: domlogin-test
+    <<: *dom-build-vars
+
+.bank-ltest-deploy:
+  extends: .bank-ltest
+  variables: 
+    <<: *deploy-vars
+
+.dom-ltest-deploy:
+  extends: .dom-ltest
+  variables:
+    <<: *deploy-vars
