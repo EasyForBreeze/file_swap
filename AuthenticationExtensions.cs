@@ -136,7 +136,8 @@ public static class AuthenticationExtensions
             .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
             {
                 // HttpOnly и Secure обеспечиваются через CookiePolicy, здесь дополнительно ограничиваем время жизни и включаем sliding expiration.
-                options.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
+                // Используем Unspecified для HTTP режима с редиректами
+                options.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Unspecified;
                 options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
                 options.SlidingExpiration = true;
                 options.LogoutPath = keycloakAuthSettings.LogoutPath;
@@ -168,10 +169,10 @@ public static class AuthenticationExtensions
                 options.GetClaimsFromUserInfoEndpoint = true; // userinfo помогает получить расширенные claim'ы, если они настроены в Keycloak.
 
                 // Настройка cookie корреляции для предотвращения ошибки "Correlation failed"
-                // Используем Lax для работы через редиректы с внешних доменов (Keycloak)
-                // Lax позволяет отправлять cookie при GET-запросах верхнего уровня (редирект с Keycloak - это GET верхнего уровня)
-                // Важно: для POST-запросов Lax не работает, но OAuth flow использует GET для редиректа
-                options.CorrelationCookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
+                // Используем Unspecified (None) для работы через редиректы в HTTP режиме
+                // В HTTP режиме с кросс-доменными/кросс-портовыми редиректами Lax может не работать
+                // Unspecified позволяет браузеру самому решать как обрабатывать cookie (обычно как None в старых браузерах)
+                options.CorrelationCookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Unspecified;
                 options.CorrelationCookie.HttpOnly = true;
                 options.CorrelationCookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.None; // HTTP режим
                 options.CorrelationCookie.IsEssential = true;
@@ -181,7 +182,7 @@ public static class AuthenticationExtensions
                 // Этого достаточно для OAuth flow
 
                 // Настройка NonceCookie для PKCE (аналогичные настройки для консистентности)
-                options.NonceCookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
+                options.NonceCookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Unspecified;
                 options.NonceCookie.HttpOnly = true;
                 options.NonceCookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.None; // HTTP режим
                 options.NonceCookie.IsEssential = true;
