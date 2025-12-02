@@ -168,13 +168,15 @@ public static class AuthenticationExtensions
                 options.GetClaimsFromUserInfoEndpoint = true; // userinfo помогает получить расширенные claim'ы, если они настроены в Keycloak.
 
                 // Настройка cookie корреляции для предотвращения ошибки "Correlation failed"
-                // Важно: для HTTP окружения используем SameSite=Lax, так как редирект с Keycloak - это GET-запрос верхнего уровня
-                // Lax позволяет отправлять cookie при GET-запросах верхнего уровня с внешних сайтов
+                // Используем Lax для работы через редиректы с внешних доменов (Keycloak)
+                // Lax позволяет отправлять cookie при GET-запросах верхнего уровня (редирект с Keycloak - это GET верхнего уровня)
+                // Важно: для POST-запросов Lax не работает, но OAuth flow использует GET для редиректа
                 options.CorrelationCookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
                 options.CorrelationCookie.HttpOnly = true;
                 options.CorrelationCookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.None; // HTTP режим
                 options.CorrelationCookie.IsEssential = true;
                 options.CorrelationCookie.Path = "/";
+                options.CorrelationCookie.Domain = null; // Явно устанавливаем null для работы в Docker/за прокси
                 // Время жизни cookie корреляции управляется автоматически (по умолчанию ~10 минут)
                 // Этого достаточно для OAuth flow
 
@@ -184,6 +186,59 @@ public static class AuthenticationExtensions
                 options.NonceCookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.None; // HTTP режим
                 options.NonceCookie.IsEssential = true;
                 options.NonceCookie.Path = "/";
+                options.NonceCookie.Domain = null; // Явно устанавливаем null для работы в Docker/за прокси
+
+                // Добавляем логирование для отладки проблем с корреляцией
+                options.Events.OnRedirectToIdentityProvider = context =>
+                {
+                    var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
+                    var logger = loggerFactory.CreateLogger("AuthenticationExtensions");
+                    
+                    // Получаем все cookie корреляции
+                    var allCookies = context.HttpContext.Request.Cookies
+                        .Where(c => c.Key.StartsWith(".AspNetCore.Correlation."))
+                        .Select(c => c.Key)
+                        .ToList();
+                    
+                    var state = context.Properties.Items.ContainsKey(".xsrf") ? context.Properties.Items[".xsrf"] : "не найден";
+                    
+                    logger.LogInformation(
+                        "Редирект на Keycloak. CallbackPath: {CallbackPath}, State: {State}, RedirectUri: {RedirectUri}, Найдено cookie корреляции: {Count}, Keys: {Keys}",
+                        options.CallbackPath,
+                        state,
+                        context.ProtocolMessage?.RedirectUri ?? "не установлен",
+                        allCookies.Count,
+                        string.Join(", ", allCookies));
+                    
+                    return Task.CompletedTask;
+                };
+
+                // Логируем информацию при получении callback - ДО проверки корреляции
+                options.Events.OnMessageReceived = context =>
+                {
+                    var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
+                    var logger = loggerFactory.CreateLogger("AuthenticationExtensions");
+                    
+                    // Проверяем наличие cookie корреляции ДО того, как они будут проверены
+                    var correlationCookies = context.HttpContext.Request.Cookies
+                        .Where(c => c.Key.StartsWith(".AspNetCore.Correlation."))
+                        .ToList();
+                    
+                    var allCookies = context.HttpContext.Request.Cookies
+                        .Select(c => c.Key)
+                        .ToList();
+                    
+                    logger.LogInformation(
+                        "Получен callback от Keycloak. Path: {Path}, Query: {Query}, Cookie корреляции: {Count}, Всего cookie: {TotalCount}, Keys корреляции: {Keys}, Все cookie: {AllKeys}",
+                        context.HttpContext.Request.Path,
+                        context.HttpContext.Request.QueryString,
+                        correlationCookies.Count,
+                        allCookies.Count,
+                        string.Join(", ", correlationCookies.Select(c => c.Key)),
+                        string.Join(", ", allCookies));
+                    
+                    return Task.CompletedTask;
+                };
 
                 // Настройка автоматического обновления токенов
                 options.RefreshOnIssuerKeyNotFound = true; // Автоматически обновлять токены при 401/403
@@ -242,6 +297,35 @@ public static class AuthenticationExtensions
                             if (!context.Response.HasStarted)
                             {
                                 context.Response.Redirect(accessDeniedPath);
+                                context.HandleResponse();
+                            }
+                            return Task.CompletedTask;
+                        }
+                        
+                        // Специальная обработка ошибки корреляции
+                        if (oidcEx.Message.Contains("Correlation failed") || context.Failure?.Message?.Contains("Correlation failed") == true)
+                        {
+                            // Логируем все cookie для отладки
+                            var allCookies = context.HttpContext.Request.Cookies
+                                .Select(c => 
+                                {
+                                    var value = c.Value ?? "";
+                                    var preview = value.Length > 50 ? value.Substring(0, 50) + "..." : value;
+                                    return $"{c.Key}={preview}";
+                                })
+                                .ToList();
+                            
+                            logger.LogError(
+                                "Ошибка корреляции. Path: {Path}, Query: {Query}, Все cookie: {Cookies}, Correlation cookies: {CorrelationCookies}",
+                                context.HttpContext.Request.Path,
+                                context.HttpContext.Request.QueryString,
+                                string.Join("; ", allCookies),
+                                string.Join(", ", context.HttpContext.Request.Cookies.Keys.Where(k => k.StartsWith(".AspNetCore.Correlation."))));
+                            
+                            // Перенаправляем на страницу ошибки с более информативным сообщением
+                            if (!context.Response.HasStarted)
+                            {
+                                context.Response.Redirect($"{errorPath}?error=correlation_failed");
                                 context.HandleResponse();
                             }
                             return Task.CompletedTask;
