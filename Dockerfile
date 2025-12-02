@@ -40,10 +40,9 @@ COPY --from=build /src/ssl ./ssl
 
 # Устанавливаем права на директорию данных и ssl
 RUN mkdir -p /app/ssl && \
-    chown -R appuser:appuser /app/data && \
-    chown -R appuser:appuser /app/ssl
+    chown -R appuser:appuser /app
 
 USER appuser
 
-EXPOSE 8888
+EXPOSE 9443
 ENTRYPOINT ["dotnet", "new_assistant.dll"]
