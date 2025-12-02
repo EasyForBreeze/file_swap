@@ -1,0 +1,829 @@
+@page "/error"
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Hosting
+@using Microsoft.Extensions.Logging
+@using System
+@using System.IO
+@using System.Linq
+@using System.Threading
+@using new_assistant.Core.Helpers
+@using new_assistant.Configuration
+@using Microsoft.Extensions.Caching.Memory
+@using Microsoft.Extensions.Options
+@using Microsoft.JSInterop
+@using System.Collections.Generic
+@implements IAsyncDisposable
+@inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
+@inject ILogger<Error> Logger
+@inject IWebHostEnvironment Environment
+@inject DataPathsSettings DataPathsSettings
+@inject IOptions<LogsPageSettings> LogsPageSettingsOptions
+@inject IMemoryCache MemoryCache
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Сервис временно недоступен - KeyCloak Assistant</PageTitle>
+
+<div class="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <div class="max-w-2xl w-full">
+        <!-- Main Card -->
+        <div class="bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-10 shadow-xl">
+            <!-- Icon -->
+            <div class="flex justify-center mb-8">
+                <div class="w-24 h-24 bg-red-900/30 rounded-full flex items-center justify-center shadow-lg border-2 border-red-800/50">
+                    <svg class="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <h1 class="text-4xl font-bold text-center mb-4 text-gray-100">
+                Сервис временно недоступен
+            </h1>
+            
+            <p class="text-center text-gray-400 mb-8">
+                Приносим извинения за доставленные неудобства
+            </p>
+
+            <!-- Error Message -->
+            <div class="bg-red-900/20 border border-red-800/50 rounded-xl p-6 mb-6">
+                <div class="flex items-start space-x-3 mb-4">
+                    <svg class="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-red-300 mb-2">Что произошло?</h3>
+                        <p class="text-gray-300 text-sm leading-relaxed">
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                @errorMessage
+                            }
+                            else
+                            {
+                                <text>Возникла критическая ошибка при подключении к серверу аутентификации. Возможно, сервис KeyCloak временно недоступен или проводятся технические работы.</text>
+                            }
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- What to do -->
+            <div class="bg-gray-700/30 border border-gray-600/50 rounded-xl p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-200 mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                    Что делать?
+                </h3>
+                <ul class="space-y-3 text-gray-300 text-sm">
+                    <li class="flex items-start gap-3">
+                        <svg class="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Подождите несколько минут и попробуйте обновить страницу</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <svg class="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Проверьте стабильность вашего интернет-соединения</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <svg class="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Если проблема сохраняется — свяжитесь с технической поддержкой</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                <button 
+                    @onclick="RefreshPage"
+                    class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg shadow-md transition-colors flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Обновить страницу
+                </button>
+                
+                <button 
+                    @onclick="GoToHome"
+                    class="px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white font-medium rounded-lg shadow-md transition-colors flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                    На главную
+                </button>
+            </div>
+
+            <!-- Technical Details (if available) -->
+            @if (!string.IsNullOrEmpty(errorDetails) && isDevelopment)
+            {
+                <div class="mt-6 pt-6 border-t border-gray-600/50">
+                    <details class="group">
+                        <summary class="cursor-pointer text-sm text-gray-400 hover:text-gray-300 flex items-center gap-2">
+                            <svg class="w-4 h-4 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                            Технические детали (только для разработчиков)
+                        </summary>
+                        <div class="mt-3 p-4 bg-gray-900/50 rounded-lg border border-gray-700/50">
+                            <pre class="text-xs text-gray-400 overflow-x-auto whitespace-pre-wrap break-all font-mono">@errorDetails</pre>
+                        </div>
+                    </details>
+                </div>
+            }
+        </div>
+
+        <!-- Additional Info -->
+        <div class="mt-4 text-center">
+            <p class="text-gray-500 text-xs">
+                Код ошибки: @errorCode | Время: @DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+            </p>
+        </div>
+    </div>
+
+    <!-- Временный раздел просмотра логов -->
+    <div class="max-w-7xl w-full mt-8">
+        <div class="bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-10 shadow-xl">
+            <h2 class="text-2xl font-bold text-white mb-6">Просмотр логов системы</h2>
+            
+            <div class="grid grid-cols-1 gap-6">
+                <!-- Список файлов -->
+                <div class="card p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-white">Файлы логов</h3>
+                        <button @onclick="RefreshFileList" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">
+                            <svg class="w-4 h-4 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Обновить
+                        </button>
+                    </div>
+                    
+                    @if (isLoadingFiles)
+                    {
+                        <div class="flex items-center justify-center py-8">
+                            <div class="text-center space-y-2">
+                                <div class="relative">
+                                    <div class="w-12 h-12 border-4 border-blue-500/30 rounded-full"></div>
+                                    <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
+                                </div>
+                                <p class="text-gray-400 text-sm">Загрузка файлов...</p>
+                            </div>
+                        </div>
+                    }
+                    else if (logFiles == null || !logFiles.Any())
+                    {
+                        <div class="text-center py-8">
+                            <svg class="w-12 h-12 text-gray-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.467-.881-6.08-2.33.893-.533 1.963-.84 3.08-.84h6c1.117 0 2.187.307 3.08.84z"></path>
+                            </svg>
+                            <p class="text-gray-400 mb-1">Файлы логов не найдены</p>
+                            <p class="text-gray-500 text-sm">Проверьте настройки пути к логам</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="space-y-1 max-h-[400px] overflow-y-auto">
+                            @foreach (var file in logFiles.OrderByDescending(f => f.Date))
+                            {
+                                <button @onclick="() => LoadLogFile(file.FileName)" 
+                                        class="w-full text-left px-4 py-3 rounded-lg transition-colors @(selectedFileName == file.FileName ? "bg-blue-600/20 border border-blue-500/30" : "bg-gray-800/30 hover:bg-gray-800/50 border border-gray-700/30")">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium text-white truncate">@file.FileName</p>
+                                            <div class="flex items-center space-x-3 mt-1">
+                                                <span class="text-xs text-gray-400">
+                                                    @FormatHelper.FormatBytes(file.Size)
+                                                </span>
+                                                <span class="text-xs text-gray-500">
+                                                    @file.Date.ToString("dd.MM.yyyy HH:mm")
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <svg class="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    </div>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Содержимое файла -->
+                <div class="card p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-white">
+                            @if (!string.IsNullOrEmpty(selectedFileName))
+                            {
+                                <span>@selectedFileName</span>
+                            }
+                            else
+                            {
+                                <span>Выберите файл для просмотра</span>
+                            }
+                        </h3>
+                        @if (!string.IsNullOrEmpty(selectedFileName))
+                        {
+                            <div class="flex items-center space-x-2">
+                                <button @onclick="RefreshCurrentFile" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">
+                                    <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                    </svg>
+                                    Обновить
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    @if (isLoadingContent)
+                    {
+                        <div class="flex items-center justify-center py-20">
+                            <div class="text-center space-y-4">
+                                <div class="relative">
+                                    <div class="w-16 h-16 border-4 border-blue-500/30 rounded-full"></div>
+                                    <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
+                                </div>
+                                <p class="text-gray-400">Загрузка содержимого...</p>
+                            </div>
+                        </div>
+                    }
+                    else if (string.IsNullOrEmpty(logContent))
+                    {
+                        <div class="text-center py-20">
+                            <svg class="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.467-.881-6.08-2.33.893-.533 1.963-.84 3.08-.84h6c1.117 0 2.187.307 3.08.84z"></path>
+                            </svg>
+                            <p class="text-gray-400 mb-2">Выберите файл из списка для просмотра</p>
+                            <p class="text-gray-500 text-sm">Логи содержат подробную информацию о работе приложения</p>
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(logErrorMessage))
+                    {
+                        <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                            <div class="flex items-center space-x-2">
+                                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <p class="text-red-400 font-medium">Ошибка загрузки файла</p>
+                            </div>
+                            <p class="text-red-300 mt-2 text-sm">@logErrorMessage</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
+                            <div class="bg-gray-800/50 px-4 py-2 border-b border-gray-700 flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs text-gray-400">Строк:</span>
+                                    <span class="text-xs text-white font-medium">@lineCount</span>
+                                    @if (maxLinesReached)
+                                    {
+                                        <span class="text-xs text-yellow-400">(показаны последние @maxLinesShown строк)</span>
+                                    }
+                                </div>
+                                <div class="flex items-center space-x-4">
+                                    <button @onclick="ScrollToTop" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs transition-colors">
+                                        В начало
+                                    </button>
+                                    <button @onclick="ScrollToBottom" class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs transition-colors">
+                                        В конец
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="log-content" class="p-4 font-mono text-xs text-gray-300 overflow-x-auto overflow-y-auto" style="max-height: 600px;">
+                                @logContent
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string ErrorMessageKey = "ErrorMessage";
+    private const string ErrorCodeKey = "ErrorCode";
+    private const string ErrorDetailsKey = "ErrorDetails";
+    
+    private const int MaxMessageLength = 500;
+    private const int MaxDetailsLength = 5000;
+    private const int MaxCodeLength = 10;
+    
+    private string errorMessage = "";
+    private string errorDetails = "";
+    private string errorCode = "500";
+    private bool isDevelopment = false;
+    
+    // Логи (временная функциональность)
+    private const string FileListCacheKey = "ErrorPage_FileList";
+    private List<LogFileInfo>? logFiles;
+    private string? selectedFileName;
+    private string? logContent;
+    private bool isLoadingFiles = false;
+    private bool isLoadingContent = false;
+    private string? logErrorMessage;
+    private string logsDirectory = string.Empty;
+    private int lineCount = 0;
+    private bool maxLinesReached = false;
+    private int maxLinesShown;
+    private long maxFileSizeBytes;
+    private int fileListCacheTtlMinutes;
+    private int fileReadTimeoutSeconds;
+    private CancellationTokenSource? loadFileCancellationTokenSource;
+
+    /// <summary>
+    /// Валидирует и обрезает строку до максимальной длины
+    /// </summary>
+    private static string SanitizeString(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "";
+        
+        // Обрезаем до максимальной длины
+        if (value.Length > maxLength)
+            value = value.Substring(0, maxLength);
+        
+        return value.Trim();
+    }
+
+    /// <summary>
+    /// Валидирует код ошибки (только цифры)
+    /// </summary>
+    private static string SanitizeErrorCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "500";
+        
+        // Оставляем только цифры
+        var sanitized = new string(value.Where(char.IsDigit).Take(MaxCodeLength).ToArray());
+        return string.IsNullOrEmpty(sanitized) ? "500" : sanitized;
+    }
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            var httpContext = HttpContextAccessor.HttpContext;
+            
+            if (httpContext != null)
+            {
+                // Пытаемся получить данные из HttpContext.Items (приоритет)
+                if (httpContext.Items.TryGetValue(ErrorMessageKey, out var itemMessage))
+                {
+                    errorMessage = SanitizeString(itemMessage?.ToString(), MaxMessageLength);
+                }
+                
+                if (httpContext.Items.TryGetValue(ErrorCodeKey, out var itemCode))
+                {
+                    errorCode = SanitizeErrorCode(itemCode?.ToString());
+                }
+                
+                if (httpContext.Items.TryGetValue(ErrorDetailsKey, out var itemDetails))
+                {
+                    errorDetails = SanitizeString(itemDetails?.ToString(), MaxDetailsLength);
+                }
+            }
+            
+            // Если данных нет в Items, пробуем query parameters (для прямых переходов)
+            if (string.IsNullOrEmpty(errorMessage))
+            {
+                var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+                var queryParams = QueryHelpers.ParseQuery(uri.Query);
+
+                if (queryParams.TryGetValue("message", out var message))
+                {
+                    errorMessage = SanitizeString(message.ToString(), MaxMessageLength);
+                }
+
+                if (queryParams.TryGetValue("details", out var details))
+                {
+                    errorDetails = SanitizeString(details.ToString(), MaxDetailsLength);
+                }
+
+                if (queryParams.TryGetValue("code", out var code))
+                {
+                    errorCode = SanitizeErrorCode(code.ToString());
+                }
+            }
+
+            // Определяем окружение через IWebHostEnvironment
+            isDevelopment = Environment.IsDevelopment();
+
+            // Логируем отображение страницы ошибки
+            Logger.LogWarning(
+                "Error page displayed. Code: {ErrorCode}, Message: {ErrorMessage}, IsDevelopment: {IsDevelopment}",
+                errorCode,
+                errorMessage ?? "No message",
+                isDevelopment);
+        }
+        catch (Exception ex)
+        {
+            // В случае ошибки при инициализации страницы ошибки - логируем и используем значения по умолчанию
+            Logger.LogError(ex, "Error occurred while initializing error page");
+            errorCode = "500";
+            errorMessage = "Произошла ошибка при загрузке страницы ошибки.";
+            errorDetails = isDevelopment ? ex.ToString() : "";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Инициализация функциональности просмотра логов
+        try
+        {
+            var settings = LogsPageSettingsOptions.Value;
+            maxLinesShown = settings.MaxLinesShown;
+            maxFileSizeBytes = settings.MaxFileSizeBytes;
+            fileListCacheTtlMinutes = settings.FileListCacheTtlMinutes;
+            fileReadTimeoutSeconds = settings.FileReadTimeoutSeconds;
+            
+            logsDirectory = DataPathsSettings.GetLogsDirectoryPath();
+            
+            if (!Directory.Exists(logsDirectory))
+            {
+                try
+                {
+                    Directory.CreateDirectory(logsDirectory);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Не удалось создать директорию логов: {LogsDirectory}", logsDirectory);
+                }
+            }
+            
+            await LoadFileList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Ошибка инициализации просмотра логов на странице ошибки");
+        }
+    }
+
+    private async Task LoadFileList()
+    {
+        isLoadingFiles = true;
+        logErrorMessage = null;
+        
+        try
+        {
+            if (MemoryCache.TryGetValue(FileListCacheKey, out List<LogFileInfo>? cachedFiles) && cachedFiles != null)
+            {
+                logFiles = cachedFiles;
+            }
+            else
+            {
+                await Task.Run(() =>
+                {
+                    logFiles = new List<LogFileInfo>();
+                    
+                    if (!Directory.Exists(logsDirectory))
+                    {
+                        return;
+                    }
+                    
+                    var files = Directory.GetFiles(logsDirectory, "*.log", SearchOption.TopDirectoryOnly);
+                    
+                    foreach (var filePath in files)
+                    {
+                        if (!IsValidLogFile(filePath))
+                        {
+                            continue;
+                        }
+                        
+                        var fileInfo = new FileInfo(filePath);
+                        logFiles.Add(new LogFileInfo
+                        {
+                            FileName = fileInfo.Name,
+                            FullPath = fileInfo.FullName,
+                            Size = fileInfo.Length,
+                            Date = fileInfo.LastWriteTime
+                        });
+                    }
+                });
+                
+                var cacheOptions = new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(fileListCacheTtlMinutes),
+                    SlidingExpiration = null,
+                    Size = 1
+                };
+                
+                MemoryCache.Set(FileListCacheKey, logFiles, cacheOptions);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Ошибка загрузки списка файлов логов");
+            logErrorMessage = $"Ошибка загрузки списка файлов: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingFiles = false;
+            StateHasChanged();
+        }
+    }
+    
+    private bool IsValidLogFile(string filePath)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(filePath);
+            var normalizedDir = Path.GetFullPath(logsDirectory);
+            return fullPath.StartsWith(normalizedDir, StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task LoadLogFile(string fileName)
+    {
+        loadFileCancellationTokenSource?.Cancel();
+        loadFileCancellationTokenSource?.Dispose();
+        loadFileCancellationTokenSource = new CancellationTokenSource();
+        
+        selectedFileName = fileName;
+        isLoadingContent = true;
+        logErrorMessage = null;
+        logContent = null;
+        
+        try
+        {
+            var file = logFiles?.FirstOrDefault(f => f.FileName == fileName);
+            if (file == null)
+            {
+                logErrorMessage = "Файл не найден";
+                return;
+            }
+            
+            if (!IsValidLogFile(file.FullPath))
+            {
+                logErrorMessage = "Доступ к файлу запрещен";
+                return;
+            }
+            
+            var fileInfo = new FileInfo(file.FullPath);
+            if (!fileInfo.Exists)
+            {
+                logErrorMessage = "Файл не существует";
+                return;
+            }
+            
+            if (fileInfo.Length > maxFileSizeBytes)
+            {
+                logErrorMessage = $"Файл слишком большой для просмотра (максимум {FormatHelper.FormatBytes(maxFileSizeBytes)})";
+                return;
+            }
+            
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(fileReadTimeoutSeconds));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                loadFileCancellationTokenSource.Token,
+                timeoutCts.Token);
+            
+            await Task.Run(async () =>
+            {
+                var (content, totalLines, reached) = await ReadLastLinesAsync(
+                    file.FullPath, 
+                    maxLinesShown, 
+                    linkedCts.Token);
+                
+                logContent = content;
+                lineCount = totalLines;
+                maxLinesReached = reached;
+            }, linkedCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            if (loadFileCancellationTokenSource.IsCancellationRequested)
+            {
+                logErrorMessage = "Загрузка файла была отменена";
+            }
+            else
+            {
+                logErrorMessage = $"Таймаут при чтении файла (превышен лимит {fileReadTimeoutSeconds} секунд)";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Ошибка загрузки содержимого файла {FileName}", fileName);
+            logErrorMessage = $"Ошибка чтения файла: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingContent = false;
+            StateHasChanged();
+            await ScrollToBottomAsync();
+        }
+    }
+    
+    private async Task<(string Content, int TotalLines, bool MaxLinesReached)> ReadLastLinesAsync(
+        string filePath, 
+        int maxLines, 
+        CancellationToken cancellationToken)
+    {
+        var fileInfo = new FileInfo(filePath);
+        var estimatedMaxBytesToRead = maxLines * 200;
+        
+        if (fileInfo.Length <= estimatedMaxBytesToRead * 2)
+        {
+            return await ReadFileCompletelyAsync(filePath, maxLines, cancellationToken);
+        }
+        
+        return await ReadLastLinesFromEndAsync(filePath, maxLines, cancellationToken);
+    }
+    
+    private async Task<(string Content, int TotalLines, bool MaxLinesReached)> ReadFileCompletelyAsync(
+        string filePath,
+        int maxLines,
+        CancellationToken cancellationToken)
+    {
+        var allLines = new List<string>();
+        
+        using var reader = new StreamReader(filePath, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096);
+        
+        string? line;
+        while ((line = await reader.ReadLineAsync()) != null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            allLines.Add(line);
+        }
+        
+        var totalLines = allLines.Count;
+        var maxLinesReached = totalLines > maxLines;
+        
+        var linesToShow = maxLinesReached 
+            ? allLines.Skip(totalLines - maxLines).ToList()
+            : allLines;
+        
+        var content = string.Join("\n", linesToShow);
+        
+        return (content, totalLines, maxLinesReached);
+    }
+    
+    private async Task<(string Content, int TotalLines, bool MaxLinesReached)> ReadLastLinesFromEndAsync(
+        string filePath,
+        int maxLines,
+        CancellationToken cancellationToken)
+    {
+        var lines = new List<string>();
+        
+        using var fileStream = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 8192,
+            useAsync: true);
+        
+        var buffer = new byte[8192];
+        var position = fileStream.Length;
+        var partialLine = string.Empty;
+        
+        while (position > 0 && lines.Count < maxLines)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            var bytesToRead = (int)Math.Min(buffer.Length, position);
+            position -= bytesToRead;
+            fileStream.Seek(position, SeekOrigin.Begin);
+            
+            var bytesRead = await fileStream.ReadAsync(buffer, 0, bytesToRead, cancellationToken);
+            if (bytesRead == 0)
+                break;
+            
+            var text = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
+            text = text + partialLine;
+            partialLine = string.Empty;
+            
+            var textLines = text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            
+            if (position > 0 && textLines.Length > 0)
+            {
+                partialLine = textLines[0];
+            }
+            
+            var startIndex = position > 0 ? 1 : 0;
+            for (int i = textLines.Length - 1; i >= startIndex; i--)
+            {
+                if (lines.Count >= maxLines)
+                    break;
+                
+                if (!string.IsNullOrEmpty(textLines[i]) || lines.Count > 0)
+                {
+                    lines.Insert(0, textLines[i]);
+                }
+            }
+        }
+        
+        if (!string.IsNullOrEmpty(partialLine) && lines.Count < maxLines)
+        {
+            lines.Insert(0, partialLine);
+        }
+        
+        var totalLines = lines.Count;
+        var maxLinesReached = position > 0 || totalLines >= maxLines;
+        
+        if (position == 0)
+        {
+            totalLines = lines.Count;
+            maxLinesReached = false;
+        }
+        else
+        {
+            totalLines = maxLinesReached ? maxLines + 1 : lines.Count;
+        }
+        
+        var content = string.Join("\n", lines);
+        
+        return (content, totalLines, maxLinesReached);
+    }
+
+    private async Task RefreshFileList()
+    {
+        MemoryCache.Remove(FileListCacheKey);
+        await LoadFileList();
+    }
+
+    private async Task RefreshCurrentFile()
+    {
+        if (!string.IsNullOrEmpty(selectedFileName))
+        {
+            await LoadLogFile(selectedFileName);
+        }
+    }
+
+    private async Task ScrollToTopAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("scrollElementToTop", "log-content");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Ошибка прокрутки вверх");
+        }
+    }
+
+    private async Task ScrollToBottomAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("scrollElementToBottom", "log-content");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Ошибка прокрутки вниз");
+        }
+    }
+
+    private async Task ScrollToTop()
+    {
+        await ScrollToTopAsync();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        await ScrollToBottomAsync();
+    }
+    
+    private class LogFileInfo
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string FullPath { get; set; } = string.Empty;
+        public long Size { get; set; }
+        public DateTime Date { get; set; }
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        if (loadFileCancellationTokenSource != null)
+        {
+            loadFileCancellationTokenSource.Cancel();
+            loadFileCancellationTokenSource.Dispose();
+        }
+        await Task.CompletedTask;
+    }
+
+    private void RefreshPage()
+    {
+        // Перенаправляем на главную страницу с полной перезагрузкой
+        // Если Keycloak восстановился - произойдет аутентификация
+        // Если нет - снова попадем на страницу ошибки
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    private void GoToHome()
+    {
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}
+
